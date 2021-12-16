@@ -10,8 +10,13 @@ find_package(Torch REQUIRED)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
 
 find_package(OpenCV REQUIRED)
-include_directories( ${OpenCV_INCLUDE_DIRS} )
 
-#add_executable( geolocation_surveyor Source )
-#target_link_libraries( geolocation_surveyor "${TORCH_LIBRARIES}")
-#target_link_libraries( geolocation_surveyor ${OpenCV_LIBS} )
+set( source_dir "${CMAKE_CURRENT_SOURCE_DIR}/src/" )
+set( computer_vision "${CMAKE_CURRENT_SOURCE_DIR}/computer_vision/" )
+
+include_directories( ${OpenCV_INCLUDE_DIRS} )
+include_directories( ${computer_vision} )
+
+add_executable( Source ${source_dir}/Source.cpp )
+target_link_libraries( Source "${TORCH_LIBRARIES}" )
+target_link_libraries( Source ${OpenCV_LIBS} )
