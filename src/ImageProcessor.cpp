@@ -8,6 +8,7 @@
 #include <numeric>
 
 #include "ImageProcessor.hpp"
+#include "class_utils.hpp"
 
 ImageProcessor::ImageProcessor(cv::Mat inputMat) {
 
@@ -20,6 +21,34 @@ void ImageProcessor::ShowImage(cv::Mat input) const {
 
     cv::imshow("output image", input);
     cv::waitKey();
+}
+
+// 2 fmap inputs: row/col manipulation, transposition
+template<typename T, typename ...U>
+bool ImageProcessor::SubmatrixCreation(std::pair<T, T> inputGrads, U ...args) const {
+
+    // unpack fmap and two integer values
+    auto params = std::make_tuple(args...);
+
+    // apply crop and transposition lambdas on input gradient pair
+    auto newPair = std::get<0>(params)(inputGrads, std::get<2>(params), std::get<3>(params));
+    newPair = std::get<1>(params)(inputGrads);
+    newPair = std::get<0>(params)(inputGrads, std::get<4>(params), std::get<5>(params));
+
+    // check if kernel window has both x and y non-zero gradients (a.k.a it is corner)
+    auto accumulation = [](cv::Mat input) -> bool {
+
+        int finalSum = 0;
+        for(int i = 0; i < input.rows; ++i) {
+
+            const auto row = input.row(i);
+            finalSum += std::accumulate(row.begin<int>(), row.end<int>(), 0);
+        }
+
+        return finalSum > 0;
+    };
+
+    return (accumulation(std::get<0>(newPair)) && accumulation(std::get<1>(newPair)));
 }
 
 void ImageProcessor::EdgeDetection() {
@@ -112,32 +141,52 @@ void ImageProcessor::ImageGradientCalculation(cv::Mat inputMat) const {
 
 void ImageProcessor::FindCorners(cv::Mat grad_x, cv::Mat grad_y, cv::Size kernelSize) const { // kernel size dimensions must be odd
 
+    // transposition and crop lambda functions applied to two fmaps that will be sent to SubmatrixCreation function
+    auto lFunc = [](cv::Mat input, int param1, int param2) -> cv::Mat {
+
+        return input.rowRange(param1, param2);
+    };
+    class_utils::fmap<decltype(lFunc)> fmap1 {std::move(lFunc)};
+
+    auto lTrans = [](cv::Mat input) -> cv::Mat {
+
+        return input.t();
+    };
+    class_utils::fmap<decltype(lTrans)> fmap2 {std::move(lTrans)};
+
     // define constants
-    int rowIteration = kernelSize.height / 2;
-    int colIteration = kernelSize.width / 2;
+    const int row_const = ((kernelSize.height - 1) / 2);
+    const int col_const = ((kernelSize.width - 1) / 2);
+
+    // define iterating and other necessary variables
+    int rowCounter = kernelSize.height / 2;
+    int colCounter = kernelSize.width / 2;
+    int rowIterations = grad_x.rows / kernelSize.height;
+    int colIteration = grad_x.cols / kernelSize.width;
+    std::pair<cv::Mat, cv::Mat> inputPair {grad_x, grad_y};
 
     // iterate through both image gradients
-    for(int i = 0; i < grad_x.rows; ++i) {
+    for(int i = 0; i < rowIterations; ++i) {
 
-        for(int j = 0; j < grad_x.cols; ++j) {
+        // assign value based on whether or not kernel exceeds rows
+        int row_param2 = rowCounter + row_const > grad_x.rows ? grad_x.rows : rowCounter + row_const;
 
-            const int row_const = ((kernelSize.height - 1) / 2);
-            const int col_const = ((kernelSize.width - 1) / 2);
-            // check each neighboring gradient value to determine if corner
-            auto submatrix_row = grad_x.rowRange(rowIteration - row_const, rowIteration + row_const);
-            auto submatrix_col = submatrix_row.colRange(rowIteration - col_const, rowIteration + col_const);
+        for(int j = 0; j < colIteration; ++j) {
 
-            auto finalSum = 0;
-            for(int k = 0; k < submatrix_col.rows; ++k) {
+            // assign value based on whether or not kernel exceeds cols
+            int col_param2 = colCounter + col_const > grad_x.cols ? grad_x.cols : colCounter + col_const;
 
-                const auto submatrix = submatrix_col.row(k);
-                finalSum += std::accumulate(submatrix.begin<int>(), submatrix.end<int>(), 0);
+            if(SubmatrixCreation(inputPair, fmap1, fmap2, rowCounter - row_const, row_param2, colCounter - col_const, col_param2)) {
+
+                const auto xVal = (j * kernelSize.width) - col_const;
+                const auto yVal = (i * kernelSize.height) - row_const;
+                circle(this->inputMat, cv::Point(yVal, xVal), 1,  cv::Scalar(0), 2, 8, 0);
             }
 
-            colIteration += kernelSize.width;
+            colCounter += kernelSize.width;
         }
 
-        colIteration = kernelSize.width / 2;
-        rowIteration += kernelSize.height;
+        colCounter = kernelSize.width / 2;
+        rowCounter += kernelSize.height;
     }
 }

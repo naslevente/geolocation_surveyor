@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 2.8)
 
-#set_property( CMAKE_CXX_STANDARD 17 )
+set( CMAKE_CXX_STANDARD 20 )
 
 project( geolocation_surveyor )
 set( OpenCV_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../opencv/opencv_build )

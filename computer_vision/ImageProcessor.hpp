@@ -19,7 +19,8 @@ class ImageProcessor {
         ~ImageProcessor();
 
         // helper functions
-        bool GradientSearch(cv::Mat ) const;
+        template<typename T, typename ...U>
+        bool SubmatrixCreation(std::pair<T, T> inputGrads, U ...args) const;
 
         // main functions
         void ShowImage(cv::Mat input) const;
