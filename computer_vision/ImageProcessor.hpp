@@ -24,10 +24,10 @@ class ImageProcessor {
 
         // main functions
         void ShowImage(cv::Mat input) const;
-        void EdgeDetection();
+        void LocateObstacle();
         void CornerDetection() const;
-        void ImageGradientCalculation(cv::Mat input) const;
-        void FindCorners(cv::Mat grad_x, cv::Mat grad_y, cv::Size kernelSize) const;
+        void ImageGradientCalculation(cv::Mat input, cv::Mat &grad_x, cv::Mat &grad_y) const;
+        void ProcessGradients(cv::Mat grad_x, cv::Mat grad_y, cv::Size kernelSize) const;
 
     private:
 

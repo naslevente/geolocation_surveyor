@@ -7,8 +7,11 @@
 #include <cassert>
 #include <numeric>
 
+#include <boost/stacktrace.hpp>
+
 #include "ImageProcessor.hpp"
 #include "class_utils.hpp"
+#include "ClusterIdentification.hpp"
 
 ImageProcessor::ImageProcessor(cv::Mat inputMat) {
 
@@ -32,8 +35,8 @@ bool ImageProcessor::SubmatrixCreation(std::pair<T, T> inputGrads, U ...args) co
 
     // apply crop and transposition lambdas on input gradient pair
     auto newPair = std::get<0>(params)(inputGrads, std::get<2>(params), std::get<3>(params));
-    newPair = std::get<1>(params)(inputGrads);
-    newPair = std::get<0>(params)(inputGrads, std::get<4>(params), std::get<5>(params));
+    newPair = std::get<1>(params)(newPair);
+    newPair = std::get<0>(params)(newPair, std::get<4>(params), std::get<5>(params));
 
     // check if kernel window has both x and y non-zero gradients (a.k.a it is corner)
     auto accumulation = [](cv::Mat input) -> bool {
@@ -48,16 +51,17 @@ bool ImageProcessor::SubmatrixCreation(std::pair<T, T> inputGrads, U ...args) co
         return finalSum > 0;
     };
 
+    //bool output = (accumulation(std::get<0>(newPair)) && accumulation(std::get<1>(newPair)));
     return (accumulation(std::get<0>(newPair)) && accumulation(std::get<1>(newPair)));
 }
 
-void ImageProcessor::EdgeDetection() {
+void ImageProcessor::LocateObstacle() {
 
     // define me constants
     const int maxThreshold = 100;
-    const int lowThreshold = 90;
+    const int lowThreshold = 70;
     const int kernel = 3;
-    const int ratio = 3;
+    const int ratio = 4;
 
     // convert rgb mat to grayscale
     cv::Mat grayscale;
@@ -67,16 +71,19 @@ void ImageProcessor::EdgeDetection() {
 
     // edge detection with canny
     cv::Mat finalImage;
-    cv::blur(grayscale, finalImage, cv::Size(3, 3));
+    cv::blur(grayscale, finalImage, cv::Size(5, 5));
     cv::Canny(finalImage, finalImage, lowThreshold, lowThreshold * ratio, kernel);
 
     ShowImage(finalImage);
 
     // move grayscale mat into object's gray image field variable
-    this->grayImage = std::move(grayscale);
+    this->grayImage = finalImage;
 
-    // calculate image gradients
-    this->ImageGradientCalculation(finalImage);
+    // calculate image gradients and process gradients to find specialized points
+    cv::Mat grad_x;
+    cv::Mat grad_y;
+    //this->ImageGradientCalculation(finalImage, grad_x, grad_y);
+    //this->ProcessGradients(grad_x, grad_y, cv::Size(9, 9));
 }
 
 void ImageProcessor::CornerDetection() const {
@@ -117,29 +124,20 @@ void ImageProcessor::CornerDetection() const {
     ShowImage(finalNormalizedScaled);
 }
 
-void ImageProcessor::ImageGradientCalculation(cv::Mat inputMat) const {
+void ImageProcessor::ImageGradientCalculation(cv::Mat inputMat, cv::Mat &grad_x, cv::Mat &grad_y) const {
 
     // define constants and other necessary variables
     const int kernelSize = 3;
     const int scale = 1; // default value
     const int delta = 0; // default value
     const int depth = CV_16S;
-    cv::Mat grad_x;
-    cv::Mat grad_y;
 
     // calculate gradients with sobel operator
     cv::Sobel(inputMat, grad_x, depth, 1, 0, kernelSize, scale, delta, cv::BORDER_DEFAULT);
     cv::Sobel(inputMat, grad_y, depth, 0, 1, kernelSize, scale, delta, cv::BORDER_DEFAULT);
-
-    // call FindCorners function on newly calculated gradients
-    this->FindCorners(grad_x, grad_y, cv::Size(11, 11));
-
-    //std::cout << "x gradient output: " << '\n' << cv::format(grad_x, cv::Formatter::FMT_PYTHON) << '\n';
-    //std::cout << "y gradient output: " << '\n' << cv::format(grad_x, cv::Formatter::FMT_PYTHON) << '\n';
-
 }
 
-void ImageProcessor::FindCorners(cv::Mat grad_x, cv::Mat grad_y, cv::Size kernelSize) const { // kernel size dimensions must be odd
+void ImageProcessor::ProcessGradients(cv::Mat grad_x, cv::Mat grad_y, cv::Size kernelSize) const { // kernel size dimensions must be odd
 
     // transposition and crop lambda functions applied to two fmaps that will be sent to SubmatrixCreation function
     auto lFunc = [](cv::Mat input, int param1, int param2) -> cv::Mat {
@@ -178,9 +176,7 @@ void ImageProcessor::FindCorners(cv::Mat grad_x, cv::Mat grad_y, cv::Size kernel
 
             if(SubmatrixCreation(inputPair, fmap1, fmap2, rowCounter - row_const, row_param2, colCounter - col_const, col_param2)) {
 
-                const auto xVal = (j * kernelSize.width) - col_const;
-                const auto yVal = (i * kernelSize.height) - row_const;
-                circle(this->inputMat, cv::Point(yVal, xVal), 1,  cv::Scalar(0), 2, 8, 0);
+                circle(this->grayImage, cv::Point(colCounter, rowCounter), 1,  cv::Scalar(255), 2, 8, 0);
             }
 
             colCounter += kernelSize.width;
@@ -189,4 +185,8 @@ void ImageProcessor::FindCorners(cv::Mat grad_x, cv::Mat grad_y, cv::Size kernel
         colCounter = kernelSize.width / 2;
         rowCounter += kernelSize.height;
     }
+
+    ShowImage(this->grayImage);
+
+    std::cout << boost::stacktrace::stacktrace() << '\n';
 }
