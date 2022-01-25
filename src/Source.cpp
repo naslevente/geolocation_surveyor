@@ -19,7 +19,7 @@ int main(int argv, char* argc[]) {
 
     // create ImageProcessor object
     cv::Mat inputMat = cv::imread(argc[1], 1);
-    cv::resize(inputMat, inputMat, cv::Size(), 0.25, 0.25);
+    //cv::resize(inputMat, inputMat, cv::Size(), 0.25, 0.25);
     std::unique_ptr<ImageProcessor> imageProcessor = std::make_unique<ImageProcessor>(inputMat);
 
     // apply edge detection on input image

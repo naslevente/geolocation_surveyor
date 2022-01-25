@@ -59,9 +59,9 @@ void ImageProcessor::LocateObstacle() {
 
     // define me constants
     const int maxThreshold = 100;
-    const int lowThreshold = 70;
+    const int lowThreshold = 90;
     const int kernel = 3;
-    const int ratio = 4;
+    const int ratio = 3;
 
     // convert rgb mat to grayscale
     cv::Mat grayscale;
@@ -71,7 +71,7 @@ void ImageProcessor::LocateObstacle() {
 
     // edge detection with canny
     cv::Mat finalImage;
-    cv::blur(grayscale, finalImage, cv::Size(5, 5));
+    cv::blur(grayscale, finalImage, cv::Size(3, 3));
     cv::Canny(finalImage, finalImage, lowThreshold, lowThreshold * ratio, kernel);
 
     ShowImage(finalImage);
@@ -82,8 +82,8 @@ void ImageProcessor::LocateObstacle() {
     // calculate image gradients and process gradients to find specialized points
     cv::Mat grad_x;
     cv::Mat grad_y;
-    //this->ImageGradientCalculation(finalImage, grad_x, grad_y);
-    //this->ProcessGradients(grad_x, grad_y, cv::Size(9, 9));
+    this->ImageGradientCalculation(finalImage, grad_x, grad_y);
+    this->ProcessGradients(grad_x, grad_y, cv::Size(9, 9));
 }
 
 void ImageProcessor::CornerDetection() const {
