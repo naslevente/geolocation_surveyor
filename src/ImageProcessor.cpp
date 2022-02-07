@@ -10,17 +10,19 @@
 #include <boost/stacktrace.hpp>
 
 #include "ImageProcessor.hpp"
-#include "class_utils.hpp"
 #include "ClusterIdentification.hpp"
+#include "class_utils.hpp"
 
 ImageProcessor::ImageProcessor(cv::Mat inputMat) {
 
     this->inputMat = std::move(inputMat);
 }
 
+ImageProcessor::ImageProcessor() { }
+
 ImageProcessor::~ImageProcessor() = default;
 
-void ImageProcessor::ShowImage(cv::Mat input) const {
+void ImageProcessor::ShowImage(const cv::Mat &input) const {
 
     cv::imshow("output image", input);
     cv::waitKey();
@@ -107,7 +109,6 @@ void ImageProcessor::CornerDetection() const {
     cv::normalize(finalImage, finalNormalized, 0, 255, cv::NORM_MINMAX, CV_32FC1, cv::Mat());
     ShowImage(finalNormalized);
     cv::convertScaleAbs(finalNormalized, finalNormalizedScaled);
-    //ShowImage(finalNormalized);
 
     // draw corner points calculated onto final image
     for(int i = 0; i < finalNormalized.rows; ++i) {
@@ -161,9 +162,18 @@ void ImageProcessor::ProcessGradients(cv::Mat grad_x, cv::Mat grad_y, cv::Size k
     int colCounter = kernelSize.width / 2;
     int rowIterations = grad_x.rows / kernelSize.height;
     int colIteration = grad_x.cols / kernelSize.width;
-    std::pair<cv::Mat, cv::Mat> inputPair {grad_x, grad_y};
+    std::pair<cv::Mat, cv::Mat> inputPair { grad_x, grad_y };
+
+    // TODO: calculate clusters straight from data points
+    // create data points which will be used to find clusters
+    std::vector<cv::Vec2d> dataPoints = std::vector<cv::Vec2d>();
+
+    // create csv file to import data points
+    std::ofstream outputFile;
+    outputFile.open("dataPoints.csv");
 
     // iterate through both image gradients
+    int count = 1;
     for(int i = 0; i < rowIterations; ++i) {
 
         // assign value based on whether or not kernel exceeds rows
@@ -177,6 +187,8 @@ void ImageProcessor::ProcessGradients(cv::Mat grad_x, cv::Mat grad_y, cv::Size k
             if(SubmatrixCreation(inputPair, fmap1, fmap2, rowCounter - row_const, row_param2, colCounter - col_const, col_param2)) {
 
                 circle(this->grayImage, cv::Point(colCounter, rowCounter), 1,  cv::Scalar(255), 2, 8, 0);
+                //dataPoints.push_back(cv::Vec2d(colCounter, rowCounter));
+                outputFile << colCounter << "," << rowCounter << ",\n";
             }
 
             colCounter += kernelSize.width;
@@ -189,4 +201,46 @@ void ImageProcessor::ProcessGradients(cv::Mat grad_x, cv::Mat grad_y, cv::Size k
     ShowImage(this->grayImage);
 
     std::cout << boost::stacktrace::stacktrace() << '\n';
+
+    outputFile.close();
+
+    // cluster identification and plotting
+    ClusterIdentification *id = new ClusterIdentification(true);
+    id->Setup("dataPoints.csv");
+
+    delete id;
+}
+
+// calculates optical flow between two input files and outputs optical flow in visual format
+void ImageProcessor::OpticalFlowCalculation(cv::Mat &prevFrame, cv::Mat &currentFrame, cv::Mat &outputFrame) const {
+
+    ShowImage(prevFrame);
+
+    // change input frames to grayscale (single channeled)
+    cv::cvtColor(prevFrame, prevFrame, cv::COLOR_BGR2GRAY);
+    cv::cvtColor(currentFrame, currentFrame, cv::COLOR_BGR2GRAY);
+    cv::calcOpticalFlowFarneback(prevFrame, currentFrame, outputFrame, 0.5, 3, 15, 3, 5, 1.2, 0);
+    std::cout << "output frame dimensions: " << outputFrame.cols << " " << outputFrame.rows << '\n';
+    std::cout << "input frame dimensions: " << prevFrame.cols << " " << prevFrame.rows << '\n';
+
+    // convert prevFrame back to color to see optical flow vector outputs
+    cv::cvtColor(prevFrame, prevFrame, cv::COLOR_GRAY2BGR);
+
+    // iterate through displacement vectors and output onto prevFrame (only every third pixel)
+    for(int i = 0; i < outputFrame.rows; i += 3) {
+
+        for(int j = 0; j < outputFrame.cols; j += 3) {
+
+                // create original point, retrieve delta for x and y direction and create final endpoint 
+                cv::Point2f originalPoint = cv::Point2f(j, i);
+                cv::Vec2f deltas = outputFrame.at<cv::Vec2f>(i, j);
+                cv::Point2f endPoint = cv::Point2f((float)(originalPoint.x + deltas[0]), (float)(originalPoint.y + deltas[1]));
+
+                // draw arrowed line on prevFrame
+                cv::arrowedLine(prevFrame, originalPoint, endPoint, cv::Scalar(0, 255, 0), 1, 8, 0, 0.1);
+        }
+    }
+    
+    ShowImage(prevFrame);
+    //std::cout << "Optical flow vector calculations: " << '\n' << cv::format(outputFrame, cv::Formatter::FMT_PYTHON) << '\n';
 }
