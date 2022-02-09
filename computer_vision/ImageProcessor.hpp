@@ -22,15 +22,19 @@ class ImageProcessor {
 
         // helper functions
         template<typename T, typename ...U>
-        bool SubmatrixCreation(std::pair<T, T> inputGrads, U ...args) const;
+        float SubmatrixCreation(std::pair<T, T> &inputPair, U ...args) const;
 
-        // main functions
+        // deprecated approach
         void ShowImage(const cv::Mat &input) const;
         void LocateObstacle();
         void CornerDetection() const;
         void ImageGradientCalculation(cv::Mat input, cv::Mat &grad_x, cv::Mat &grad_y) const;
         void ProcessGradients(cv::Mat grad_x, cv::Mat grad_y, cv::Size kernelSize) const;
+
+        // optical flow approach
         void OpticalFlowCalculation(cv::Mat &prevFrame, cv::Mat &currentFrame, cv::Mat &outputFrame) const;
+        void ObstacleDetection() const;
+        int FindAngleTrajectory(cv::Mat &opticalFlow, cv::Size windowThreshold) const;
 
     private:
 

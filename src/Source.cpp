@@ -49,6 +49,9 @@ int main(int argv, char* argc[]) {
 
     /*
 
+    cv::resize(prevFrame, prevFrame, cv::Size(), 0.15, 0.15);
+    cv::resize(currentFrame, currentFrame, cv::Size(), 0.15, 0.15);
+
     for( ; ; ) {
 
         inputData >> currentFrame;

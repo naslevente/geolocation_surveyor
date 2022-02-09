@@ -5,6 +5,7 @@
 #include <functional>
 #include <vector>
 #include <cassert>
+#include <math.h>
 #include <numeric>
 
 #include <boost/stacktrace.hpp>
@@ -29,32 +30,33 @@ void ImageProcessor::ShowImage(const cv::Mat &input) const {
 }
 
 // 2 fmap inputs: row/col manipulation, transposition
+// TODO: generalize for use by corner detection and trajectory angle calculation
 template<typename T, typename ...U>
-bool ImageProcessor::SubmatrixCreation(std::pair<T, T> inputGrads, U ...args) const {
+float ImageProcessor::SubmatrixCreation(std::pair<T, T> &inputPair, U ...args) const {
 
     // unpack fmap and two integer values
     auto params = std::make_tuple(args...);
 
     // apply crop and transposition lambdas on input gradient pair
-    auto newPair = std::get<0>(params)(inputGrads, std::get<2>(params), std::get<3>(params));
+    auto newPair = std::get<0>(params)(inputPair, std::get<2>(params), std::get<3>(params));
     newPair = std::get<1>(params)(newPair);
     newPair = std::get<0>(params)(newPair, std::get<4>(params), std::get<5>(params));
 
     // check if kernel window has both x and y non-zero gradients (a.k.a it is corner)
-    auto accumulation = [](cv::Mat input) -> bool {
+    auto accumulation = [](cv::Mat input) -> float {
 
         int finalSum = 0;
         for(int i = 0; i < input.rows; ++i) {
 
             const auto row = input.row(i);
-            finalSum += std::accumulate(row.begin<int>(), row.end<int>(), 0);
+            finalSum += std::accumulate(row.begin<float>(), row.end<float>(), 0, 
+                [](float a, float b) { return abs(b) + a; });
         }
 
-        return finalSum > 0;
+        return finalSum;
     };
 
-    //bool output = (accumulation(std::get<0>(newPair)) && accumulation(std::get<1>(newPair)));
-    return (accumulation(std::get<0>(newPair)) && accumulation(std::get<1>(newPair)));
+    return (accumulation(std::get<0>(newPair)) + accumulation(std::get<1>(newPair)));
 }
 
 void ImageProcessor::LocateObstacle() {
@@ -85,7 +87,7 @@ void ImageProcessor::LocateObstacle() {
     cv::Mat grad_x;
     cv::Mat grad_y;
     this->ImageGradientCalculation(finalImage, grad_x, grad_y);
-    this->ProcessGradients(grad_x, grad_y, cv::Size(9, 9));
+    //this->ProcessGradients(grad_x, grad_y, cv::Size(9, 9));
 }
 
 void ImageProcessor::CornerDetection() const {
@@ -138,6 +140,7 @@ void ImageProcessor::ImageGradientCalculation(cv::Mat inputMat, cv::Mat &grad_x,
     cv::Sobel(inputMat, grad_y, depth, 0, 1, kernelSize, scale, delta, cv::BORDER_DEFAULT);
 }
 
+/*
 void ImageProcessor::ProcessGradients(cv::Mat grad_x, cv::Mat grad_y, cv::Size kernelSize) const { // kernel size dimensions must be odd
 
     // transposition and crop lambda functions applied to two fmaps that will be sent to SubmatrixCreation function
@@ -159,7 +162,7 @@ void ImageProcessor::ProcessGradients(cv::Mat grad_x, cv::Mat grad_y, cv::Size k
 
     // define iterating and other necessary variables
     int rowCounter = kernelSize.height / 2;
-    int colCounter = kernelSize.width / 2;
+    int rightColCounter = kernelSize.width / 2;
     int rowIterations = grad_x.rows / kernelSize.height;
     int colIteration = grad_x.cols / kernelSize.width;
     std::pair<cv::Mat, cv::Mat> inputPair { grad_x, grad_y };
@@ -182,19 +185,19 @@ void ImageProcessor::ProcessGradients(cv::Mat grad_x, cv::Mat grad_y, cv::Size k
         for(int j = 0; j < colIteration; ++j) {
 
             // assign value based on whether or not kernel exceeds cols
-            int col_param2 = colCounter + col_const > grad_x.cols ? grad_x.cols : colCounter + col_const;
+            int col_param2 = rightColCounter + col_const > grad_x.cols ? grad_x.cols : rightColCounter + col_const;
 
-            if(SubmatrixCreation(inputPair, fmap1, fmap2, rowCounter - row_const, row_param2, colCounter - col_const, col_param2)) {
+            if(SubmatrixCreation(inputPair, fmap1, fmap2, rowCounter - row_const, row_param2, rightColCounter - col_const, col_param2)) {
 
-                circle(this->grayImage, cv::Point(colCounter, rowCounter), 1,  cv::Scalar(255), 2, 8, 0);
-                //dataPoints.push_back(cv::Vec2d(colCounter, rowCounter));
-                outputFile << colCounter << "," << rowCounter << ",\n";
+                circle(this->grayImage, cv::Point(rightColCounter, rowCounter), 1,  cv::Scalar(255), 2, 8, 0);
+                //dataPoints.push_back(cv::Vec2d(rightColCounter, rowCounter));
+                outputFile << rightColCounter << "," << rowCounter << ",\n";
             }
 
-            colCounter += kernelSize.width;
+            rightColCounter += kernelSize.width;
         }
 
-        colCounter = kernelSize.width / 2;
+        rightColCounter = kernelSize.width / 2;
         rowCounter += kernelSize.height;
     }
 
@@ -210,6 +213,7 @@ void ImageProcessor::ProcessGradients(cv::Mat grad_x, cv::Mat grad_y, cv::Size k
 
     delete id;
 }
+*/
 
 // calculates optical flow between two input files and outputs optical flow in visual format
 void ImageProcessor::OpticalFlowCalculation(cv::Mat &prevFrame, cv::Mat &currentFrame, cv::Mat &outputFrame) const {
@@ -241,6 +245,79 @@ void ImageProcessor::OpticalFlowCalculation(cv::Mat &prevFrame, cv::Mat &current
         }
     }
     
+    cv::line(prevFrame, cv::Point(0, 50), cv::Point(prevFrame.cols, 50), cv::Scalar(0, 0, 0), 2);
+    cv::line(prevFrame, cv::Point(0, 200), cv::Point(prevFrame.cols, 200), cv::Scalar(0, 0, 0), 2);
     ShowImage(prevFrame);
-    //std::cout << "Optical flow vector calculations: " << '\n' << cv::format(outputFrame, cv::Formatter::FMT_PYTHON) << '\n';
+
+    // calculated suggested trajectory vector drawing
+    int suggestedDirection = FindAngleTrajectory(outputFrame, cv::Size(50, 150));
+    cv::arrowedLine(prevFrame, cv::Point(prevFrame.cols / 2, prevFrame.rows), cv::Point(suggestedDirection, 0), cv::Scalar(0, 0, 255), 1);
+
+    // original motion vector drawing
+    cv::arrowedLine(prevFrame, cv::Point(prevFrame.cols / 2, prevFrame.rows), cv::Point(prevFrame.cols / 2, 0), cv::Scalar(0, 0, 255), 1);
+    ShowImage(prevFrame);
+}
+
+// TODO: find gradient of optical flow vector field and label dense large magnitude vector areas as obstacles
+void ImageProcessor::ObstacleDetection() const {
+
+
+}
+
+// TODO: make size of window dependent on width of car and distance from obstacles
+int ImageProcessor::FindAngleTrajectory(cv::Mat &opticalFlow, cv::Size windowThreshold) const {
+
+    const int startRow = 50; // which part of matrix (in terms of y) should be scanned
+
+    // separate x and y vector magnitudes and put into pair
+    cv::Mat flowParts[2];
+    cv::split(opticalFlow, flowParts);
+    //std::cout << cv::format(flowParts[0], cv::Formatter::FMT_PYTHON) << '\n';
+    std::pair<cv::Mat, cv::Mat> inputPair { std::move(flowParts[0]), std::move(flowParts[1]) };
+
+    // crop, transpoisition, and absolute value lambda for fmaps
+    auto lFunc = [](cv::Mat input, int param1, int param2) -> cv::Mat {
+
+        return input.rowRange(param1, param2);
+    };
+    class_utils::fmap<decltype(lFunc)> fmap1 {std::move(lFunc)};
+
+    auto lTrans = [](cv::Mat input) -> cv::Mat {
+
+        return input.t();
+    };
+    class_utils::fmap<decltype(lTrans)> fmap2 {std::move(lTrans)};
+
+    // horizontal balance strategy: cut matrix in half -> pick either left or right side -> repeat until 
+    // less than window threshold
+    int rightColCounter = opticalFlow.cols / 2;
+    int leftColCounter = 0;
+    int currentWindowSize = rightColCounter;
+    //while(currentWindowSize > windowThreshold.width) {
+    while(currentWindowSize != 1) {
+
+        std::cout << "current window size and column counters: " << currentWindowSize << " " << rightColCounter << " " << leftColCounter << '\n';
+
+        // find magnitudes from each side
+        float leftMagnitude = SubmatrixCreation(inputPair, fmap1, fmap2, startRow, startRow + windowThreshold.height,
+            0, rightColCounter);
+        float rightMagnitude = SubmatrixCreation(inputPair, fmap1, fmap2, startRow, startRow + windowThreshold.height,
+            rightColCounter, rightColCounter + currentWindowSize);
+
+        // go to side with smaller magnitude
+        if(leftMagnitude > rightMagnitude) {
+            
+            leftColCounter = rightColCounter;
+            rightColCounter += (currentWindowSize / 2);
+            currentWindowSize /= 2;
+        }
+        else {
+
+            rightColCounter -= (currentWindowSize / 2);
+            currentWindowSize /= 2;
+        }
+    }
+
+    std::cout << "resulting optimal direction: " << rightColCounter << '\n';
+    return rightColCounter;
 }
