@@ -10,6 +10,13 @@
 #include "ImageProcessor.hpp"
 #include "ClusterIdentification.hpp"
 
+cv::Vec2f getProportionalityConstant(int desiredWidth, int desiredHeight, int currentWidth, int currentHeight) {
+
+    float fx = (float)(desiredWidth) / currentWidth;
+    float fy = (float)(desiredHeight) / currentHeight;
+    return cv::Vec2f(fx, fy);
+}
+
 int main(int argv, char* argc[]) {
 
     if(argv < 2) {
@@ -39,8 +46,19 @@ int main(int argv, char* argc[]) {
     cv::Mat currentFrame;
     cv::Mat opticalFlowOutput;
 
-    inputData >> prevFrame;
+    // skip first 50 frames
+    for(int i = 0; i < 50; ++i) {
+
+        inputData >> prevFrame;
+    }
     inputData >> currentFrame;
+
+    // resize frames to appropriate dimensions
+    cv::Vec2f propConsts = std::move(getProportionalityConstant(720, 420, 1920, 1080));
+    cv::resize(prevFrame, prevFrame, cv::Size(), propConsts[0], propConsts[1]);
+    cv::resize(currentFrame, currentFrame, cv::Size(), propConsts[0], propConsts[1]);
+
+    std::cout << "dimensions of resized frames: " << prevFrame.cols << " " << prevFrame.rows << '\n';
 
     // find optical flow between two frames
     imageProcessor->ShowImage(prevFrame);
@@ -48,10 +66,6 @@ int main(int argv, char* argc[]) {
     imageProcessor->OpticalFlowCalculation(prevFrame, currentFrame, opticalFlowOutput);
 
     /*
-
-    cv::resize(prevFrame, prevFrame, cv::Size(), 0.15, 0.15);
-    cv::resize(currentFrame, currentFrame, cv::Size(), 0.15, 0.15);
-
     for( ; ; ) {
 
         inputData >> currentFrame;
@@ -73,18 +87,5 @@ int main(int argv, char* argc[]) {
     // clean video opener
     inputData.release();
     cv::destroyAllWindows();
-
-    // create ImageProcessor object
-    cv::Mat inputMat = cv::imread(argc[1], 1);
-    //cv::resize(inputMat, inputMat, cv::Size(), 0.25, 0.25);
-    std::unique_ptr<ImageProcessor> imageProcessor = std::make_unique<ImageProcessor>(inputMat);
-
-    // apply edge detection on input image
-    imageProcessor->LocateObstacle();
-    //imageProcessor->CornerDetection();
-
-    // print out call stack
-    //std::cout << boost::stacktrace::stacktrace() << '\n';
-
     */
 }

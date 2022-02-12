@@ -13,6 +13,9 @@
 #include "ImageProcessor.hpp"
 #include "ClusterIdentification.hpp"
 #include "class_utils.hpp"
+#include "WindowData.hpp"
+
+#define PI 3.14159265
 
 ImageProcessor::ImageProcessor(cv::Mat inputMat) {
 
@@ -29,6 +32,17 @@ void ImageProcessor::ShowImage(const cv::Mat &input) const {
     cv::waitKey();
 }
 
+void ImageProcessor::RemoveNoise(cv::Mat &inputMat) const {
+
+    /*
+    cv::dilate(inputMat, inputMat, cv::getStructuringElement(cv::MORPH_RECT, cv::Size(9, 9)));
+    cv::erode(inputMat, inputMat, cv::getStructuringElement(cv::MORPH_RECT, cv::Size(9, 9)));
+    */
+
+    //cv::blur(inputMat, inputMat, cv::Size(9, 9));
+    cv::medianBlur(inputMat, inputMat, 7);
+}
+
 // 2 fmap inputs: row/col manipulation, transposition
 // TODO: generalize for use by corner detection and trajectory angle calculation
 template<typename T, typename ...U>
@@ -42,7 +56,9 @@ float ImageProcessor::SubmatrixCreation(std::pair<T, T> &inputPair, U ...args) c
     newPair = std::get<1>(params)(newPair);
     newPair = std::get<0>(params)(newPair, std::get<4>(params), std::get<5>(params));
 
-    // check if kernel window has both x and y non-zero gradients (a.k.a it is corner)
+    //std::cout << "resulting submatrix: " << cv::format(std::get<1>(newPair), cv::Formatter::FMT_PYTHON) << '\n';
+    //std::cout << "submatrix dimensions: " << std::get<0>(newPair).cols << " " << std::get<0>(newPair).rows << '\n';
+    // accumulate values in submatrix
     auto accumulation = [](cv::Mat input) -> float {
 
         int finalSum = 0;
@@ -57,6 +73,16 @@ float ImageProcessor::SubmatrixCreation(std::pair<T, T> &inputPair, U ...args) c
     };
 
     return (accumulation(std::get<0>(newPair)) + accumulation(std::get<1>(newPair)));
+}
+
+cv::Mat ImageProcessor::lFunc(cv::Mat input, int param1, int param2) {
+
+    return input.rowRange(param1, param2);
+}
+
+cv::Mat ImageProcessor::lTrans(cv::Mat input) {
+
+    return input.t();
 }
 
 void ImageProcessor::LocateObstacle() {
@@ -140,89 +166,19 @@ void ImageProcessor::ImageGradientCalculation(cv::Mat inputMat, cv::Mat &grad_x,
     cv::Sobel(inputMat, grad_y, depth, 0, 1, kernelSize, scale, delta, cv::BORDER_DEFAULT);
 }
 
-/*
-void ImageProcessor::ProcessGradients(cv::Mat grad_x, cv::Mat grad_y, cv::Size kernelSize) const { // kernel size dimensions must be odd
-
-    // transposition and crop lambda functions applied to two fmaps that will be sent to SubmatrixCreation function
-    auto lFunc = [](cv::Mat input, int param1, int param2) -> cv::Mat {
-
-        return input.rowRange(param1, param2);
-    };
-    class_utils::fmap<decltype(lFunc)> fmap1 {std::move(lFunc)};
-
-    auto lTrans = [](cv::Mat input) -> cv::Mat {
-
-        return input.t();
-    };
-    class_utils::fmap<decltype(lTrans)> fmap2 {std::move(lTrans)};
-
-    // define constants
-    const int row_const = ((kernelSize.height - 1) / 2);
-    const int col_const = ((kernelSize.width - 1) / 2);
-
-    // define iterating and other necessary variables
-    int rowCounter = kernelSize.height / 2;
-    int rightColCounter = kernelSize.width / 2;
-    int rowIterations = grad_x.rows / kernelSize.height;
-    int colIteration = grad_x.cols / kernelSize.width;
-    std::pair<cv::Mat, cv::Mat> inputPair { grad_x, grad_y };
-
-    // TODO: calculate clusters straight from data points
-    // create data points which will be used to find clusters
-    std::vector<cv::Vec2d> dataPoints = std::vector<cv::Vec2d>();
-
-    // create csv file to import data points
-    std::ofstream outputFile;
-    outputFile.open("dataPoints.csv");
-
-    // iterate through both image gradients
-    int count = 1;
-    for(int i = 0; i < rowIterations; ++i) {
-
-        // assign value based on whether or not kernel exceeds rows
-        int row_param2 = rowCounter + row_const > grad_x.rows ? grad_x.rows : rowCounter + row_const;
-
-        for(int j = 0; j < colIteration; ++j) {
-
-            // assign value based on whether or not kernel exceeds cols
-            int col_param2 = rightColCounter + col_const > grad_x.cols ? grad_x.cols : rightColCounter + col_const;
-
-            if(SubmatrixCreation(inputPair, fmap1, fmap2, rowCounter - row_const, row_param2, rightColCounter - col_const, col_param2)) {
-
-                circle(this->grayImage, cv::Point(rightColCounter, rowCounter), 1,  cv::Scalar(255), 2, 8, 0);
-                //dataPoints.push_back(cv::Vec2d(rightColCounter, rowCounter));
-                outputFile << rightColCounter << "," << rowCounter << ",\n";
-            }
-
-            rightColCounter += kernelSize.width;
-        }
-
-        rightColCounter = kernelSize.width / 2;
-        rowCounter += kernelSize.height;
-    }
-
-    ShowImage(this->grayImage);
-
-    std::cout << boost::stacktrace::stacktrace() << '\n';
-
-    outputFile.close();
-
-    // cluster identification and plotting
-    ClusterIdentification *id = new ClusterIdentification(true);
-    id->Setup("dataPoints.csv");
-
-    delete id;
-}
-*/
-
 // calculates optical flow between two input files and outputs optical flow in visual format
 void ImageProcessor::OpticalFlowCalculation(cv::Mat &prevFrame, cv::Mat &currentFrame, cv::Mat &outputFrame) const {
-
-    ShowImage(prevFrame);
 
     // change input frames to grayscale (single channeled)
     cv::cvtColor(prevFrame, prevFrame, cv::COLOR_BGR2GRAY);
     cv::cvtColor(currentFrame, currentFrame, cv::COLOR_BGR2GRAY);
+
+    // remove noise 
+    RemoveNoise(prevFrame);
+    RemoveNoise(currentFrame);
+    ShowImage(prevFrame);
+    ShowImage(currentFrame);
+
     cv::calcOpticalFlowFarneback(prevFrame, currentFrame, outputFrame, 0.5, 3, 15, 3, 5, 1.2, 0);
     std::cout << "output frame dimensions: " << outputFrame.cols << " " << outputFrame.rows << '\n';
     std::cout << "input frame dimensions: " << prevFrame.cols << " " << prevFrame.rows << '\n';
@@ -249,12 +205,24 @@ void ImageProcessor::OpticalFlowCalculation(cv::Mat &prevFrame, cv::Mat &current
     cv::line(prevFrame, cv::Point(0, 200), cv::Point(prevFrame.cols, 200), cv::Scalar(0, 0, 0), 2);
     ShowImage(prevFrame);
 
+    // two separate WindowData objects for two approaches
+    WindowData dims1 { cv::Size(-1, 150), 50 };
+    WindowData dims2 { cv::Size(20, 150), 50 }; // TODO: generalize height variable of point input
+
     // calculated suggested trajectory vector drawing
-    int suggestedDirection = FindAngleTrajectory(outputFrame, cv::Size(50, 150));
-    cv::arrowedLine(prevFrame, cv::Point(prevFrame.cols / 2, prevFrame.rows), cv::Point(suggestedDirection, 0), cv::Scalar(0, 0, 255), 1);
+    int suggestedDirection = FindOptimalDirection(outputFrame, dims1); // Size variable's width must be a multiple of input cols
+    int suggestedDirection2 = FindOptimalDirection_(outputFrame, dims2);
+    cv::arrowedLine(prevFrame, cv::Point(prevFrame.cols / 2, prevFrame.rows), cv::Point(suggestedDirection, dims1.getStartRow() + (dims1.getWindowDims().height / 2)),
+        cv::Scalar(0, 0, 255), 2, 8, 0, 0.04);
 
     // original motion vector drawing
-    cv::arrowedLine(prevFrame, cv::Point(prevFrame.cols / 2, prevFrame.rows), cv::Point(prevFrame.cols / 2, 0), cv::Scalar(0, 0, 255), 1);
+    cv::arrowedLine(prevFrame, cv::Point(prevFrame.cols / 2, prevFrame.rows), cv::Point(prevFrame.cols / 2, dims1.getStartRow() + (dims1.getWindowDims().height / 2)),
+        cv::Scalar(0, 0, 0), 2, 8, 0, 0.04);
+
+    float angleChange = FindChangeInAngle(abs(suggestedDirection - (prevFrame.cols / 2)), abs(prevFrame.rows - (dims1.getStartRow() + (dims1.getWindowDims().height / 2))));
+    cv::putText(prevFrame, "angle: " + std::to_string(angleChange), cv::Point(30, 30), 
+        cv::FONT_HERSHEY_PLAIN, 2.5, cv::Scalar(0, 0, 250), 2, CV_MSA);
+
     ShowImage(prevFrame);
 }
 
@@ -265,9 +233,7 @@ void ImageProcessor::ObstacleDetection() const {
 }
 
 // TODO: make size of window dependent on width of car and distance from obstacles
-int ImageProcessor::FindAngleTrajectory(cv::Mat &opticalFlow, cv::Size windowThreshold) const {
-
-    const int startRow = 50; // which part of matrix (in terms of y) should be scanned
+int ImageProcessor::FindOptimalDirection(cv::Mat &opticalFlow, WindowData dims) const {
 
     // separate x and y vector magnitudes and put into pair
     cv::Mat flowParts[2];
@@ -275,34 +241,26 @@ int ImageProcessor::FindAngleTrajectory(cv::Mat &opticalFlow, cv::Size windowThr
     //std::cout << cv::format(flowParts[0], cv::Formatter::FMT_PYTHON) << '\n';
     std::pair<cv::Mat, cv::Mat> inputPair { std::move(flowParts[0]), std::move(flowParts[1]) };
 
-    // crop, transpoisition, and absolute value lambda for fmaps
-    auto lFunc = [](cv::Mat input, int param1, int param2) -> cv::Mat {
-
-        return input.rowRange(param1, param2);
-    };
-    class_utils::fmap<decltype(lFunc)> fmap1 {std::move(lFunc)};
-
-    auto lTrans = [](cv::Mat input) -> cv::Mat {
-
-        return input.t();
-    };
-    class_utils::fmap<decltype(lTrans)> fmap2 {std::move(lTrans)};
+    // crop, transpoisition, and absolute value fmaps
+    class_utils::fmap<decltype(&lFunc)> fmap1 { lFunc };
+    class_utils::fmap<decltype(&lTrans)> fmap2 { lTrans };
 
     // horizontal balance strategy: cut matrix in half -> pick either left or right side -> repeat until 
     // less than window threshold
     int rightColCounter = opticalFlow.cols / 2;
     int leftColCounter = 0;
     int currentWindowSize = rightColCounter;
-    //while(currentWindowSize > windowThreshold.width) {
     while(currentWindowSize != 1) {
 
         std::cout << "current window size and column counters: " << currentWindowSize << " " << rightColCounter << " " << leftColCounter << '\n';
 
         // find magnitudes from each side
-        float leftMagnitude = SubmatrixCreation(inputPair, fmap1, fmap2, startRow, startRow + windowThreshold.height,
-            0, rightColCounter);
-        float rightMagnitude = SubmatrixCreation(inputPair, fmap1, fmap2, startRow, startRow + windowThreshold.height,
+        float leftMagnitude = SubmatrixCreation(inputPair, fmap1, fmap2, dims.getStartRow(), dims.getStartRow() + dims.getWindowDims().height,
+            leftColCounter, rightColCounter);
+        float rightMagnitude = SubmatrixCreation(inputPair, fmap1, fmap2, dims.getStartRow(), dims.getStartRow() + dims.getWindowDims().height,
             rightColCounter, rightColCounter + currentWindowSize);
+
+        std::cout << "left and right vector magnitude summations: " << leftMagnitude << " " << rightMagnitude << '\n';
 
         // go to side with smaller magnitude
         if(leftMagnitude > rightMagnitude) {
@@ -320,4 +278,45 @@ int ImageProcessor::FindAngleTrajectory(cv::Mat &opticalFlow, cv::Size windowThr
 
     std::cout << "resulting optimal direction: " << rightColCounter << '\n';
     return rightColCounter;
+}
+
+// second approach to finding optimal direction
+int ImageProcessor::FindOptimalDirection_(cv::Mat &opticalFlow, WindowData dims) const {
+
+    // separate x and y vector magnitudes and put into pair
+    cv::Mat flowParts[2];
+    cv::split(opticalFlow, flowParts);
+    //std::cout << cv::format(flowParts[0], cv::Formatter::FMT_PYTHON) << '\n';
+    std::pair<cv::Mat, cv::Mat> inputPair { std::move(flowParts[0]), std::move(flowParts[1]) };
+
+    // crop, transpoisition, and absolute value fmaps
+    class_utils::fmap<decltype(&lFunc)> fmap1 { lFunc };
+    class_utils::fmap<decltype(&lTrans)> fmap2 { lTrans };
+
+    // other method for finding optimal angle trajectory for car
+    int index = 0;
+    int optimalDir = -1;
+    float minDir = -1;
+    while(index != opticalFlow.cols) {
+
+        float outputMag = SubmatrixCreation(inputPair, fmap1, fmap2, dims.getStartRow(), dims.getStartRow() + dims.getWindowDims().height,
+            index, index + dims.getWindowDims().width);
+
+        if(minDir == -1 || outputMag < minDir) {
+
+            minDir = outputMag;
+            optimalDir = index + (dims.getWindowDims().width / 2);
+        }
+
+        index += dims.getWindowDims().width;
+    }
+
+    std::cout << "resulting optimal direction (second approach): " << optimalDir << '\n';
+    return optimalDir;
+}
+
+// finds change in angle based on new optimal direction
+float ImageProcessor::FindChangeInAngle(const size_t horizontalDelta, const size_t verticalDelta) const {
+
+    return atan((float)((float)(horizontalDelta) / verticalDelta)) * (float)(180 / PI);
 }

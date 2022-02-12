@@ -15,6 +15,7 @@ find_package(OpenCV REQUIRED)
 
 set( source_dir "${CMAKE_CURRENT_SOURCE_DIR}/src/" )
 set( computer_vision "${CMAKE_CURRENT_SOURCE_DIR}/computer_vision/" )
+set( class_utils "${CMAKE_CURRENT_SOURCE_DIR}/class_utils/" )
 
 # add boost to project
 set( BOOST_ROOT "/usr/include/boost" )
@@ -23,6 +24,7 @@ find_package(Boost REQUIRED COMPONENTS system)
 # add opencv and torch to project
 include_directories( ${OpenCV_INCLUDE_DIRS} )
 include_directories( ${computer_vision} )
+include_directories( ${class_utils} )
 
 # add the dlib lib
 add_subdirectory( ${CMAKE_CURRENT_SOURCE_DIR}/dlib)
