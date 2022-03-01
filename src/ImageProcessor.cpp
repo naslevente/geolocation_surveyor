@@ -8,7 +8,7 @@
 #include <math.h>
 #include <numeric>
 
-#include <boost/stacktrace.hpp>
+//#include <boost/stacktrace.hpp>
 
 #include "ImageProcessor.hpp"
 #include "ClusterIdentification.hpp"

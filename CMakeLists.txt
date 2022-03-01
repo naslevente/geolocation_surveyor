@@ -1,3 +1,7 @@
+
+
+
+
 cmake_minimum_required(VERSION 2.8)
 
 set( CMAKE_CXX_STANDARD 20 )
@@ -31,7 +35,7 @@ add_subdirectory( ${CMAKE_CURRENT_SOURCE_DIR}/dlib)
 include_directories( ${CMAKE_CURRENT_SOURCE_DIR}/plotcpp)
 
 add_executable( Source ${source_dir}/Source.cpp ${source_dir}/ImageProcessor.cpp ${source_dir}/ClusterIdentification.cpp)
-target_link_libraries( Source "${TORCH_LIBRARIES}" )
+#target_link_libraries( Source "${TORCH_LIBRARIES}" )
 target_link_libraries( Source ${OpenCV_LIBS} )
 target_link_libraries( Source dlib::dlib )
 

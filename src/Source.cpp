@@ -3,9 +3,9 @@
 #include <iostream>
 #include <memory>
 
-#include <boost/stacktrace.hpp>
+//#include <boost/stacktrace.hpp>
 #include <opencv2/opencv.hpp>
-#include <torch/torch.h>
+//#include <torch/torch.h>
 
 #include "ImageProcessor.hpp"
 #include "ClusterIdentification.hpp"
