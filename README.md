@@ -5,6 +5,7 @@
 ## Requirements
 - Working C++ compiler (C++ 17 or greater)
 - CMake (version >= 2.8)
+- Make sure X11 library is installed
 
 ## To build
 - create two new directories in the directory which will hold the clone of this project: `mkdir torches` and `mkdir opencv`
