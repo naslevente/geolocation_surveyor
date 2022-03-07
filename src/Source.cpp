@@ -26,7 +26,8 @@ int main(int argv, char* argc[]) {
     }
 
     // load video from input location
-    cv::VideoCapture inputData (argc[1]);
+    cv::VideoCapture inputData ;
+    inputData.open(argc[1]);
     if(!inputData.isOpened()) {
 
         std::cerr << "error: failed to open video" << '\n';
@@ -47,14 +48,17 @@ int main(int argv, char* argc[]) {
     cv::Mat opticalFlowOutput;
 
     // skip first 50 frames
-    for(int i = 0; i < 50; ++i) {
+    for(int i = 0; i < 60; ++i) {
 
         inputData >> prevFrame;
     }
-    inputData >> currentFrame;
+    for(int i = 0; i < 10; ++i) {
+
+        inputData >> currentFrame;
+    }
 
     // resize frames to appropriate dimensions
-    cv::Vec2f propConsts = std::move(getProportionalityConstant(720, 420, 1920, 1080));
+    cv::Vec2f propConsts = std::move(getProportionalityConstant(720, 420, prevFrame.cols, prevFrame.rows));
     cv::resize(prevFrame, prevFrame, cv::Size(), propConsts[0], propConsts[1]);
     cv::resize(currentFrame, currentFrame, cv::Size(), propConsts[0], propConsts[1]);
 

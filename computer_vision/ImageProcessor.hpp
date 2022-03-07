@@ -24,13 +24,14 @@ class ImageProcessor {
 
         // helper functions
         void ShowImage(const cv::Mat &input) const;
+        void ShowImage(const cv::Mat &input, const cv::Mat &input2) const;
         void RemoveNoise(cv::Mat &inputMat) const;
         template<typename T, typename ...U>
         float SubmatrixCreation(std::pair<T, T> &inputPair, U ...args) const;
 
         // fmap functions
-        static cv::Mat lFunc(cv::Mat input, int param1, int param2);
-        static cv::Mat lTrans(cv::Mat input);
+        static cv::Mat lFunc(const cv::Mat &input, int param1, int param2);
+        static cv::Mat lTrans(const cv::Mat &dinput);
 
         // deprecated approach
         void LocateObstacle();

@@ -32,15 +32,27 @@ void ImageProcessor::ShowImage(const cv::Mat &input) const {
     cv::waitKey();
 }
 
+void ImageProcessor::ShowImage(const cv::Mat &input, const cv::Mat &input2) const {
+
+    cv::imshow("output image", input);
+    cv::imshow("output image 2", input2);
+
+    cv::waitKey();
+    cv::waitKey();
+}
+
+// different ways to clear up image before calculating optical flow
 void ImageProcessor::RemoveNoise(cv::Mat &inputMat) const {
 
-    /*
-    cv::dilate(inputMat, inputMat, cv::getStructuringElement(cv::MORPH_RECT, cv::Size(9, 9)));
-    cv::erode(inputMat, inputMat, cv::getStructuringElement(cv::MORPH_RECT, cv::Size(9, 9)));
-    */
+    //cv::dilate(inputMat, inputMat, cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3)));
+    //cv::erode(inputMat, inputMat, cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3)));
 
     //cv::blur(inputMat, inputMat, cv::Size(9, 9));
-    cv::medianBlur(inputMat, inputMat, 7);
+    //cv::medianBlur(inputMat, inputMat, 7);
+
+    // edge detection
+    cv::blur(inputMat, inputMat, cv::Size(3, 3));
+    cv::Canny(inputMat, inputMat, 90, 90 * 3, 3);
 }
 
 // 2 fmap inputs: row/col manipulation, transposition
@@ -75,12 +87,12 @@ float ImageProcessor::SubmatrixCreation(std::pair<T, T> &inputPair, U ...args) c
     return (accumulation(std::get<0>(newPair)) + accumulation(std::get<1>(newPair)));
 }
 
-cv::Mat ImageProcessor::lFunc(cv::Mat input, int param1, int param2) {
+cv::Mat ImageProcessor::lFunc(const cv::Mat &input, int param1, int param2) {
 
     return input.rowRange(param1, param2);
 }
 
-cv::Mat ImageProcessor::lTrans(cv::Mat input) {
+cv::Mat ImageProcessor::lTrans(const cv::Mat &input) {
 
     return input.t();
 }
@@ -169,6 +181,9 @@ void ImageProcessor::ImageGradientCalculation(cv::Mat inputMat, cv::Mat &grad_x,
 // calculates optical flow between two input files and outputs optical flow in visual format
 void ImageProcessor::OpticalFlowCalculation(cv::Mat &prevFrame, cv::Mat &currentFrame, cv::Mat &outputFrame) const {
 
+    // output frame with black background which will hold all optical flow vectors
+    cv::Mat blackOutput { prevFrame.rows, prevFrame.cols, prevFrame.type(), cv::Scalar(0, 0, 0) };
+
     // change input frames to grayscale (single channeled)
     cv::cvtColor(prevFrame, prevFrame, cv::COLOR_BGR2GRAY);
     cv::cvtColor(currentFrame, currentFrame, cv::COLOR_BGR2GRAY);
@@ -183,31 +198,57 @@ void ImageProcessor::OpticalFlowCalculation(cv::Mat &prevFrame, cv::Mat &current
     std::cout << "output frame dimensions: " << outputFrame.cols << " " << outputFrame.rows << '\n';
     std::cout << "input frame dimensions: " << prevFrame.cols << " " << prevFrame.rows << '\n';
 
+    // optical flow output values
+    //std::cout << cv::format(outputFrame, cv::Formatter::FMT_PYTHON) << '\n';
+
     // convert prevFrame back to color to see optical flow vector outputs
     cv::cvtColor(prevFrame, prevFrame, cv::COLOR_GRAY2BGR);
 
-    // iterate through displacement vectors and output onto prevFrame (only every third pixel)
-    for(int i = 0; i < outputFrame.rows; i += 3) {
-
-        for(int j = 0; j < outputFrame.cols; j += 3) {
-
-                // create original point, retrieve delta for x and y direction and create final endpoint 
-                cv::Point2f originalPoint = cv::Point2f(j, i);
-                cv::Vec2f deltas = outputFrame.at<cv::Vec2f>(i, j);
-                cv::Point2f endPoint = cv::Point2f((float)(originalPoint.x + deltas[0]), (float)(originalPoint.y + deltas[1]));
-
-                // draw arrowed line on prevFrame
-                cv::arrowedLine(prevFrame, originalPoint, endPoint, cv::Scalar(0, 255, 0), 1, 8, 0, 0.1);
-        }
-    }
-    
-    cv::line(prevFrame, cv::Point(0, 50), cv::Point(prevFrame.cols, 50), cv::Scalar(0, 0, 0), 2);
-    cv::line(prevFrame, cv::Point(0, 200), cv::Point(prevFrame.cols, 200), cv::Scalar(0, 0, 0), 2);
-    ShowImage(prevFrame);
+    // reference vector in top left corner
+    cv::arrowedLine(blackOutput, cv::Point(0, 0), cv::Point(2, 6), cv::Scalar(0, 0, 255), 1, 8, 0, 0.1);
 
     // two separate WindowData objects for two approaches
     WindowData dims1 { cv::Size(-1, 150), 50 };
     WindowData dims2 { cv::Size(20, 150), 50 }; // TODO: generalize height variable of point input
+
+    // iterate through displacement vectors and output onto prevFrame (only every third pixel)
+    for(int i = 0; i < outputFrame.rows; i += 9) {
+
+        for(int j = 0; j < outputFrame.cols; j += 9) {
+
+            // create original point, retrieve delta for x and y direction and create final endpoint 
+            cv::Point2f originalPoint = cv::Point2f(j, i);
+            cv::Vec2f deltas = outputFrame.at<cv::Vec2f>(i, j);
+            cv::Point2f endPoint = cv::Point2f((float)(originalPoint.x + deltas[0]), (float)(originalPoint.y + deltas[1]));
+
+            if(i > dims1.getStartRow() && i < dims1.getStartRow() + dims1.getWindowDims().height &&
+                j > outputFrame.cols / 3 && j < outputFrame.cols * 2 / 3) {
+
+                std::cout << deltas << " ";
+
+                cv::arrowedLine(prevFrame, originalPoint, endPoint, cv::Scalar(0, 0, 255), 1, 8, 0, 0.1);
+                cv::arrowedLine(blackOutput, originalPoint, endPoint, cv::Scalar(0, 0, 255), 1, 8, 0, 0.1);
+            }
+            else {
+
+                cv::arrowedLine(prevFrame, originalPoint, endPoint, cv::Scalar(0, 255, 0), 1, 8, 0, 0.1);
+                cv::arrowedLine(blackOutput, originalPoint, endPoint, cv::Scalar(0, 255, 0), 1, 8, 0, 0.1);
+            }
+        }
+    }
+
+    std::cout << '\n';
+    
+    cv::line(prevFrame, cv::Point(0, 50), cv::Point(prevFrame.cols, 50), cv::Scalar(0, 0, 0), 2);
+    cv::line(prevFrame, cv::Point(0, 200), cv::Point(prevFrame.cols, 200), cv::Scalar(0, 0, 0), 2);
+    ShowImage(prevFrame, blackOutput);
+
+    // TODO: remove unnecessary copies
+    // output optical flow output magnitudes of small window in center
+    cv::Mat croppedOutput = lFunc(outputFrame, dims1.getStartRow(), dims1.getStartRow() + dims1.getWindowDims().height);
+    croppedOutput = lTrans(croppedOutput);
+    croppedOutput = lFunc(croppedOutput, outputFrame.cols / 3, outputFrame.cols / 3 * 2);
+    //std::cout << cv::format(croppedOutput, cv::Formatter::FMT_PYTHON) << '\n';
 
     // calculated suggested trajectory vector drawing
     int suggestedDirection = FindOptimalDirection(outputFrame, dims1); // Size variable's width must be a multiple of input cols
