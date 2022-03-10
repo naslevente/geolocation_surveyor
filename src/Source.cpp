@@ -5,10 +5,12 @@
 
 //#include <boost/stacktrace.hpp>
 #include <opencv2/opencv.hpp>
+#include <argparse/argparse.hpp>
 //#include <torch/torch.h>
 
 #include "ImageProcessor.hpp"
 #include "ClusterIdentification.hpp"
+#include "Configuration.hpp"
 
 cv::Vec2f getProportionalityConstant(int desiredWidth, int desiredHeight, int currentWidth, int currentHeight) {
 
@@ -17,17 +19,35 @@ cv::Vec2f getProportionalityConstant(int desiredWidth, int desiredHeight, int cu
     return cv::Vec2f(fx, fy);
 }
 
-int main(int argv, char* argc[]) {
+int main(int argc, char* argv[]) {
 
-    if(argv < 2) {
+    // command line parsing
+    argparse::ArgumentParser parser("Geolocation Surveyor");
+    parser.add_argument("video").help("<video>.mp4: path to input video");
+    parser.add_argument("config").help("<config>.txt: path to config file");
 
-        std::cerr << "error: missing file input location" << '\n';
-        exit(-1);
+    // make sure necessary input paths are given
+    try {
+
+        parser.parse_args(argc, argv);
+
+    } catch(const std::runtime_error &err) {
+
+        std::cerr << err.what() << '\n';
+        std::cerr << parser;
+        std::exit(1);
     }
+
+    // get input paths from parser
+    auto pathToVid = parser.get<std::string>("video");
+    auto pathToConfig = parser.get<std::string>("config");
+
+    std::cout << "path to video: " << pathToVid << '\n';
+    std::cout << "path to config file: " << pathToConfig << '\n';
 
     // load video from input location
     cv::VideoCapture inputData ;
-    inputData.open(argc[1]);
+    inputData.open(pathToVid);
     if(!inputData.isOpened()) {
 
         std::cerr << "error: failed to open video" << '\n';
