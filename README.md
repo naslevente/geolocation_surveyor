@@ -18,6 +18,7 @@
 - cd into project directory
 - clone dlib library into project directory from https://github.com/davisking/dlib
 - clone plotcpp wrapper into project directory from https://github.com/Kolkir/plotcpp
+- clone argparser for C++ into project directory from https://github.com/p-ranav/argparse.git
 - cd back to the directory where the clone of this project will reside
 - Create a build directory !IMPORTANT! Use out-of-tree build directory!  (e.g. `mkdir build`)
 - cd into build directory (e.g. `cd build`)
