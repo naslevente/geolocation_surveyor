@@ -10,7 +10,7 @@
 
 #include "ImageProcessor.hpp"
 #include "ClusterIdentification.hpp"
-#include "Configuration.hpp"
+//#include "Configuration.hpp"
 
 cv::Vec2f getProportionalityConstant(int desiredWidth, int desiredHeight, int currentWidth, int currentHeight) {
 
@@ -23,8 +23,10 @@ int main(int argc, char* argv[]) {
 
     // command line parsing
     argparse::ArgumentParser parser("Geolocation Surveyor");
-    parser.add_argument("video").help("<video>.mp4: path to input video");
-    parser.add_argument("config").help("<config>.txt: path to config file");
+    //parser.add_argument("video").help("<video>.mp4: path to input video");
+    //parser.add_argument("config").help("<config>.txt: path to config file");
+    parser.add_argument("first_frame").help("<frame one>.jpg: path to first frame input");
+    parser.add_argument("second_frame").help("<frame two>.jpg: path to second frame input");
 
     // make sure necessary input paths are given
     try {
@@ -39,12 +41,16 @@ int main(int argc, char* argv[]) {
     }
 
     // get input paths from parser
-    auto pathToVid = parser.get<std::string>("video");
-    auto pathToConfig = parser.get<std::string>("config");
+    //auto pathToVid = parser.get<std::string>("video");
+    //auto pathToConfig = parser.get<std::string>("config");
+    auto pathToFirstFrame = parser.get<std::string>("first_frame");
+    auto pathToSecondFrame = parser.get<std::string>("second_frame");
 
-    std::cout << "path to video: " << pathToVid << '\n';
-    std::cout << "path to config file: " << pathToConfig << '\n';
+    //std::cout << "path to video: " << pathToVid << '\n';
+    //std::cout << "path to config file: " << pathToConfig << '\n';
+    std::cout << "path to input frames: " << pathToFirstFrame << " " << pathToSecondFrame << '\n';
 
+    /*
     // load video from input location
     cv::VideoCapture inputData ;
     inputData.open(pathToVid);
@@ -53,6 +59,7 @@ int main(int argc, char* argv[]) {
         std::cerr << "error: failed to open video" << '\n';
         exit(-1);
     }
+    */
 
     // create ImageProcessor object
     std::unique_ptr<ImageProcessor> imageProcessor = std::make_unique<ImageProcessor>();
@@ -63,10 +70,14 @@ int main(int argc, char* argv[]) {
     }
 
     // go through each frame from video
-    cv::Mat prevFrame;
-    cv::Mat currentFrame;
+    cv::Mat prevFrame = imread(pathToFirstFrame, cv::IMREAD_COLOR);
+    cv::Mat currentFrame = imread(pathToSecondFrame, cv::IMREAD_COLOR);
     cv::Mat opticalFlowOutput;
 
+    imageProcessor->ShowImage(prevFrame);
+    imageProcessor->ShowImage(currentFrame);
+
+    /*
     // skip first 50 frames
     for(int i = 0; i < 60; ++i) {
 
@@ -76,6 +87,7 @@ int main(int argc, char* argv[]) {
 
         inputData >> currentFrame;
     }
+    */
 
     // resize frames to appropriate dimensions
     cv::Vec2f propConsts = std::move(getProportionalityConstant(720, 420, prevFrame.cols, prevFrame.rows));
@@ -87,7 +99,7 @@ int main(int argc, char* argv[]) {
     // find optical flow between two frames
     imageProcessor->ShowImage(prevFrame);
     imageProcessor->ShowImage(currentFrame);
-    imageProcessor->OpticalFlowCalculation(prevFrame, currentFrame, opticalFlowOutput);
+    //imageProcessor->OpticalFlowCalculation(prevFrame, currentFrame, opticalFlowOutput);
 
     /*
     for( ; ; ) {

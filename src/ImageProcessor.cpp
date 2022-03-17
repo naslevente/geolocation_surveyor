@@ -264,6 +264,9 @@ void ImageProcessor::OpticalFlowCalculation(cv::Mat &prevFrame, cv::Mat &current
     cv::putText(prevFrame, "angle: " + std::to_string(angleChange), cv::Point(30, 30), 
         cv::FONT_HERSHEY_PLAIN, 2.5, cv::Scalar(0, 0, 250), 2, CV_MSA);
 
+    // print change in angle for script to extract
+    std::cout << angleChange << '\n';
+
     ShowImage(prevFrame);
 }
 
