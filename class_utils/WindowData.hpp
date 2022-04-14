@@ -24,7 +24,7 @@ class WindowData {
 
         ~WindowData() = default;
         
-        cv::Size getWindowDims() {
+        cv::Size getWindowDims() const {
 
             return windowDims;
         }
@@ -34,7 +34,7 @@ class WindowData {
             return windowDims;
         }
 
-        int getStartRow() {
+        int getStartRow() const {
 
             return startRow;
         }

@@ -38,7 +38,7 @@ include_directories( ${CMAKE_CURRENT_SOURCE_DIR}/plotcpp )
 include_directories( ${CMAKE_CURRENT_SOURCE_DIR}/argparse/include )
 
 add_executable( Source ${source_dir}/Source.cpp ${source_dir}/ImageProcessor.cpp ${source_dir}/ClusterIdentification.cpp)
-add_executable( config ${source_dir}/ConfigWindow.cpp ${source_dir}/ImageProcessor.cpp ${source_dir}/ClusterIdentification.cpp)
+#add_executable( config ${source_dir}/ConfigWindow.cpp ${source_dir}/ImageProcessor.cpp ${source_dir}/ClusterIdentification.cpp)
 #target_link_libraries( Source "${TORCH_LIBRARIES}" )
 target_link_libraries( Source ${OpenCV_LIBS} )
 target_link_libraries( Source dlib::dlib )

@@ -14,6 +14,7 @@
 #include "ClusterIdentification.hpp"
 #include "class_utils.hpp"
 #include "WindowData.hpp"
+#include "Worker.hpp"
 
 #define PI 3.14159265
 
@@ -44,15 +45,15 @@ void ImageProcessor::ShowImage(const cv::Mat &input, const cv::Mat &input2) cons
 // different ways to clear up image before calculating optical flow
 void ImageProcessor::RemoveNoise(cv::Mat &inputMat) const {
 
-    //cv::dilate(inputMat, inputMat, cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3)));
-    //cv::erode(inputMat, inputMat, cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3)));
+    cv::dilate(inputMat, inputMat, cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3)));
+    cv::erode(inputMat, inputMat, cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3)));
 
     //cv::blur(inputMat, inputMat, cv::Size(9, 9));
     //cv::medianBlur(inputMat, inputMat, 7);
 
     // edge detection
-    cv::blur(inputMat, inputMat, cv::Size(3, 3));
-    cv::Canny(inputMat, inputMat, 90, 90 * 3, 3);
+    //cv::blur(inputMat, inputMat, cv::Size(3, 3));
+    //cv::Canny(inputMat, inputMat, 90, 90 * 3, 3);
 }
 
 // 2 fmap inputs: row/col manipulation, transposition
@@ -208,8 +209,8 @@ void ImageProcessor::OpticalFlowCalculation(cv::Mat &prevFrame, cv::Mat &current
     cv::arrowedLine(blackOutput, cv::Point(0, 0), cv::Point(2, 6), cv::Scalar(0, 0, 255), 1, 8, 0, 0.1);
 
     // two separate WindowData objects for two approaches
-    WindowData dims1 { cv::Size(-1, 150), 50 };
-    WindowData dims2 { cv::Size(20, 150), 50 }; // TODO: generalize height variable of point input
+    WindowData dims1 { cv::Size(-1, 150), 100 };
+    WindowData dims2 { cv::Size(20, 150), 100 }; // TODO: generalize height variable of point input
 
     // iterate through displacement vectors and output onto prevFrame (only every third pixel)
     for(int i = 0; i < outputFrame.rows; i += 9) {
@@ -226,8 +227,12 @@ void ImageProcessor::OpticalFlowCalculation(cv::Mat &prevFrame, cv::Mat &current
 
                 std::cout << deltas << " ";
 
-                cv::arrowedLine(prevFrame, originalPoint, endPoint, cv::Scalar(0, 0, 255), 1, 8, 0, 0.1);
-                cv::arrowedLine(blackOutput, originalPoint, endPoint, cv::Scalar(0, 0, 255), 1, 8, 0, 0.1);
+                //cv::arrowedLine(prevFrame, originalPoint, endPoint, cv::Scalar(0, 0, 255), 1, 8, 0, 0.1);
+                //cv::arrowedLine(blackOutput, originalPoint, endPoint, cv::Scalar(0, 0, 255), 1, 8, 0, 0.1);
+
+                cv::arrowedLine(prevFrame, originalPoint, endPoint, cv::Scalar(0, 255, 0), 1, 8, 0, 0.1);
+                cv::arrowedLine(blackOutput, originalPoint, endPoint, cv::Scalar(0, 255, 0), 1, 8, 0, 0.1);
+
             }
             else {
 
@@ -239,8 +244,8 @@ void ImageProcessor::OpticalFlowCalculation(cv::Mat &prevFrame, cv::Mat &current
 
     std::cout << '\n';
     
-    cv::line(prevFrame, cv::Point(0, 50), cv::Point(prevFrame.cols, 50), cv::Scalar(0, 0, 0), 2);
-    cv::line(prevFrame, cv::Point(0, 200), cv::Point(prevFrame.cols, 200), cv::Scalar(0, 0, 0), 2);
+    cv::line(prevFrame, cv::Point(0, 100), cv::Point(prevFrame.cols, 100), cv::Scalar(0, 0, 0), 2);
+    cv::line(prevFrame, cv::Point(0, 250), cv::Point(prevFrame.cols, 250), cv::Scalar(0, 0, 0), 2);
     ShowImage(prevFrame, blackOutput);
 
     // TODO: remove unnecessary copies
@@ -274,7 +279,7 @@ void ImageProcessor::ObstacleDetection() const {
 }
 
 // TODO: make size of window dependent on width of car and distance from obstacles
-int ImageProcessor::FindOptimalDirection(cv::Mat &opticalFlow, WindowData dims) const {
+int ImageProcessor::FindOptimalDirection(const cv::Mat &opticalFlow, const WindowData &dims) const {
 
     // separate x and y vector magnitudes and put into pair
     cv::Mat flowParts[2];
@@ -322,7 +327,7 @@ int ImageProcessor::FindOptimalDirection(cv::Mat &opticalFlow, WindowData dims) 
 }
 
 // second approach to finding optimal direction
-int ImageProcessor::FindOptimalDirection_(cv::Mat &opticalFlow, WindowData dims) const {
+int ImageProcessor::FindOptimalDirection_(const cv::Mat &opticalFlow, const WindowData &dims) const {
 
     // separate x and y vector magnitudes and put into pair
     cv::Mat flowParts[2];
@@ -354,6 +359,19 @@ int ImageProcessor::FindOptimalDirection_(cv::Mat &opticalFlow, WindowData dims)
 
     std::cout << "resulting optimal direction (second approach): " << optimalDir << '\n';
     return optimalDir;
+}
+
+int ImageProcessor::FindOptimalDirection__(const cv::Mat &opticalFlow, const WindowData &dims) const {
+
+    cv::Mat flowParts[2];
+    cv::split(opticalFlow, flowParts);
+    std::pair<cv::Mat, cv::Mat> inputPair { std::move(flowParts[0]), std::move(flowParts[1]) };
+
+    Worker<decltype(&lFunc), decltype(&lTrans), cv::Mat> worker { lFunc, lTrans };
+    worker.SetInputPair(inputPair);
+
+    int outputDirection = worker.GetOptimalDirection(opticalFlow.cols, dims);
+    return outputDirection;
 }
 
 // finds change in angle based on new optimal direction

@@ -68,7 +68,7 @@ int main(int argc, char* argv[]) {
     cv::Mat opticalFlowOutput;
 
     // skip first 50 frames
-    for(int i = 0; i < 60; ++i) {
+    for(int i = 0; i < 100; ++i) {
 
         inputData >> prevFrame;
     }

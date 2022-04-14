@@ -42,8 +42,9 @@ class ImageProcessor {
         // optical flow approach
         void OpticalFlowCalculation(cv::Mat &prevFrame, cv::Mat &currentFrame, cv::Mat &outputFrame) const;
         void ObstacleDetection() const;
-        int FindOptimalDirection(cv::Mat &opticalFlow, WindowData dims) const;
-        int FindOptimalDirection_(cv::Mat &opticalFlow, WindowData dims) const;
+        int FindOptimalDirection(const cv::Mat &opticalFlow, const WindowData &dims) const;
+        int FindOptimalDirection_(const cv::Mat &opticalFlow, const WindowData &dims) const;
+        int FindOptimalDirection__(const cv::Mat &opticalFlow, const WindowData &dims) const;
         float FindChangeInAngle(const size_t horizontalDelta, const size_t verticalDelta) const;
 
     private:
